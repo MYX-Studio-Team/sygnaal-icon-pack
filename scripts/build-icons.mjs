@@ -26,6 +26,70 @@ const REGISTRY_FILE = resolve(ROOT, 'src/registry.ts');
 // because they embed raster images).
 const PREVIEW_PX = 64;
 
+// Embedded raster images inside SVGs are capped at this dimension during codegen
+// to shrink the runtime bundle. 256px is 4× a typical 64px @ 2x retina display,
+// so visual fidelity at icon sizes is preserved. Vector content is never touched.
+// Source SVGs in `icons/` are also never modified — only the codegen output.
+const EMBEDDED_RASTER_MAX_PX = 256;
+
+/**
+ * Re-encode every embedded `<image data:image/...;base64,...>` raster inside the
+ * SVG: decode, resize (only if it exceeds the cap), re-compress with PNG palette
+ * encoding. Vector elements are untouched. Returns the rewritten SVG string and
+ * a {originalRaster, newRaster} byte tally.
+ *
+ * Falls back to the original data URI on any decode/encode failure so a single
+ * malformed bitmap never breaks the whole pipeline.
+ */
+async function shrinkEmbeddedRasters(svg) {
+  const regex = /(["'])data:image\/(?:png|jpe?g|webp|gif);base64,([^"']+)\1/gi;
+  const matches = [...svg.matchAll(regex)];
+  if (matches.length === 0) {
+    return { svg, originalRaster: 0, newRaster: 0, count: 0, skipped: 0 };
+  }
+
+  let originalRaster = 0;
+  let newRaster = 0;
+  let skipped = 0;
+  let result = '';
+  let pos = 0;
+
+  for (const m of matches) {
+    const [full, quote, base64Data] = m;
+    result += svg.slice(pos, m.index);
+    originalRaster += base64Data.length;
+
+    let replacement = full;
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      const meta = await sharp(buffer).metadata();
+      let pipe = sharp(buffer);
+      if (
+        (meta.width ?? 0) > EMBEDDED_RASTER_MAX_PX ||
+        (meta.height ?? 0) > EMBEDDED_RASTER_MAX_PX
+      ) {
+        pipe = pipe.resize(EMBEDDED_RASTER_MAX_PX, EMBEDDED_RASTER_MAX_PX, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
+      }
+      const reencoded = await pipe.png({ compressionLevel: 9, palette: true }).toBuffer();
+      const newBase64 = reencoded.toString('base64');
+      newRaster += newBase64.length;
+      replacement = `${quote}data:image/png;base64,${newBase64}${quote}`;
+    } catch (err) {
+      skipped += 1;
+      newRaster += base64Data.length;
+    }
+
+    result += replacement;
+    pos = m.index + full.length;
+  }
+  result += svg.slice(pos);
+
+  return { svg: result, originalRaster, newRaster, count: matches.length, skipped };
+}
+
 function toPascalCase(filename) {
   let name = basename(filename, extname(filename));
   name = name.replace(/^Icon[_ ]/i, '');
@@ -54,6 +118,8 @@ async function main() {
 
   const seen = new Map();
   const entries = [];
+  let totalOriginalRaster = 0;
+  let totalNewRaster = 0;
 
   for (const file of files) {
     const componentName = toPascalCase(file);
@@ -65,9 +131,15 @@ async function main() {
     seen.set(componentName, file);
 
     const raw = await readFile(resolve(SRC_ICONS, file), 'utf-8');
+    const shrunk = await shrinkEmbeddedRasters(raw);
+    totalOriginalRaster += shrunk.originalRaster;
+    totalNewRaster += shrunk.newRaster;
+    if (shrunk.skipped > 0) {
+      console.warn(`  ${file}: ${shrunk.skipped}/${shrunk.count} embedded raster(s) could not be re-encoded — kept original`);
+    }
 
     const tsx = await transform(
-      raw,
+      shrunk.svg,
       {
         plugins: ['@svgr/plugin-svgo', '@svgr/plugin-jsx'],
         typescript: true,
@@ -85,7 +157,7 @@ async function main() {
     // Rasterize the SVG to a small PNG thumbnail for the JSDoc preview.
     let preview = null;
     try {
-      const pngBuffer = await sharp(Buffer.from(raw), { density: 200 })
+      const pngBuffer = await sharp(Buffer.from(shrunk.svg), { density: 200 })
         .resize(PREVIEW_PX, PREVIEW_PX, {
           fit: 'contain',
           background: { r: 0, g: 0, b: 0, alpha: 0 },
@@ -144,8 +216,13 @@ export type SygnaalIconName = keyof typeof SYGNAAL_ICONS;
   await writeFile(REGISTRY_FILE, registry);
 
   const withPreview = entries.filter((e) => e.preview !== null).length;
+  const mb = (n) => (n / 1024 / 1024).toFixed(2);
   console.log(`Generated ${entries.length} icons → src/icons/`);
   console.log(`  ${withPreview} with preview, ${entries.length - withPreview} without`);
+  if (totalOriginalRaster > 0) {
+    const pct = ((1 - totalNewRaster / totalOriginalRaster) * 100).toFixed(1);
+    console.log(`  embedded rasters: ${mb(totalOriginalRaster)} MB → ${mb(totalNewRaster)} MB  (-${pct}%)`);
+  }
   console.log(`Wrote registry → src/registry.ts`);
 }
 

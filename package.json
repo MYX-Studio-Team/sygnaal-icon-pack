@@ -1,7 +1,17 @@
 {
   "name": "@sygnaal/icons",
   "version": "0.1.0",
-  "description": "Typed React icon pack for the Sygnaal app.",
+  "description": "Typed React icon pack for the Sygnaal app — strongly-typed names with inline JSDoc previews.",
+  "license": "MIT",
+  "author": "Iqbal <iqbal@cerbrec.com>",
+  "keywords": [
+    "react",
+    "icons",
+    "icon-pack",
+    "svg",
+    "typescript",
+    "sygnaal"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -15,8 +25,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "sideEffects": false,
   "scripts": {
     "build:icons": "node scripts/build-icons.mjs",
