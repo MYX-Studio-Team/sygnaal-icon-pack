@@ -1,9 +1,9 @@
-# @sygnaal/icons
+# @aiqbalsyah/sygnaal-icon-pack
 
 Strongly-typed React icon pack for the Sygnaal app.
 
 ```tsx
-import { SygnaalIcon } from '@sygnaal/icons';
+import { SygnaalIcon } from '@aiqbalsyah/sygnaal-icon-pack';
 
 <SygnaalIcon name="AED" size={24} className="text-red-500" />
 ```
@@ -79,7 +79,7 @@ so using it pulls all icons into the bundle. For builds where size matters,
 import the individual component instead:
 
 ```tsx
-import { Icons } from '@sygnaal/icons';
+import { Icons } from '@aiqbalsyah/sygnaal-icon-pack';
 <Icons.AED width={24} />
 ```
 
