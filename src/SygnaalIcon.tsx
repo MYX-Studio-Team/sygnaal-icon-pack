@@ -28,14 +28,19 @@ export interface SygnaalIconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> 
  * <SygnaalIcon name="AED" size={24} className="text-red-500" />
  * ```
  */
+const DEFAULT_SIZE = 24;
+
 export const SygnaalIcon = forwardRef<SVGSVGElement, SygnaalIconProps>(
-  function SygnaalIcon({ name, size, width, height, ...rest }, ref) {
+  function SygnaalIcon({ name, size, width, height, style, ...rest }, ref) {
     const Icon = SYGNAAL_ICONS[name];
+    const resolvedWidth = size ?? width ?? DEFAULT_SIZE;
+    const resolvedHeight = size ?? height ?? DEFAULT_SIZE;
     return (
       <Icon
         ref={ref}
-        width={size ?? width}
-        height={size ?? height}
+        width={resolvedWidth}
+        height={resolvedHeight}
+        style={{ width: resolvedWidth, height: resolvedHeight, ...style }}
         {...rest}
       />
     );

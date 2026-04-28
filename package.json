@@ -1,6 +1,6 @@
 {
   "name": "@aiqbalsyah/sygnaal-icon-pack",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed React icon pack for the Sygnaal app — strongly-typed names with inline JSDoc previews.",
   "license": "MIT",
   "author": "Iqbal <iqbal@cerbrec.com>",

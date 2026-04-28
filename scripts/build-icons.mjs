@@ -145,6 +145,7 @@ async function main() {
         typescript: true,
         ref: true,
         expandProps: 'end',
+        dimensions: false,
         jsxRuntime: 'automatic',
         prettier: false,
         svgo: true,
